@@ -169,6 +169,18 @@ def test_update_order_invalid_status_transition():
     db.refresh.assert_not_called()
 
 
+def test_cancel_order_delivered_status_rejected():
+    order = _make_order(status=models.OrderStatus.DELIVERED)
+    repo = _make_mock_repo(order=order)
+    db = _make_db()
+
+    with pytest.raises(service.OrderOwnershipError, match="terminal|cancelled|delivered"):
+        service.cancel_order(db, repo, 1)
+
+    db.commit.assert_not_called()
+    db.refresh.assert_not_called()
+
+
 def test_update_order_valid_status_transition():
     order = _make_order()
     repo = _make_mock_repo(order=order)
