@@ -58,6 +58,27 @@ def test_list_orders():
     assert total == 2
 
 
+def test_list_orders_forwards_status_filter():
+    repo = _make_mock_repo()
+    repo.list_orders.return_value = ([], 0)
+
+    service.list_orders(
+        repo,
+        user_id=7,
+        status=models.OrderStatus.SHIPPED,
+        page=2,
+        page_size=5,
+    )
+
+    repo.list_orders.assert_called_once_with(
+        user_id=7,
+        status=models.OrderStatus.SHIPPED,
+        search=None,
+        page=2,
+        page_size=5,
+    )
+
+
 def test_update_order_status():
     order = _make_order()
     repo = _make_mock_repo(order=order)
