@@ -17,6 +17,10 @@ class InvoiceRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class InvoiceRefundRead(InvoiceRead):
+    """Invoice representation returned after a refund."""
+
+
 class InvoicePaid(BaseModel):
     order_id: int
     external_invoice_id: str | None = None
