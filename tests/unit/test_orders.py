@@ -108,8 +108,10 @@ def test_delete_order_not_found():
 
 # ── FSM Unit Tests ──────────────────────────────────────────────────────────
 
-def test_fsm_delivered_has_no_outgoing_transitions():
-    assert OrderStateMachine.TRANSITIONS[models.OrderStatus.DELIVERED] == []
+def test_fsm_delivered_can_only_transition_to_returned():
+    assert OrderStateMachine.TRANSITIONS[models.OrderStatus.DELIVERED] == [
+        models.OrderStatus.RETURNED,
+    ]
 
 
 VALID_TRANSITIONS = [
