@@ -108,8 +108,10 @@ def test_delete_order_not_found():
 
 # ── FSM Unit Tests ──────────────────────────────────────────────────────────
 
-def test_fsm_delivered_has_no_outgoing_transitions():
-    assert OrderStateMachine.TRANSITIONS[models.OrderStatus.DELIVERED] == []
+def test_fsm_delivered_can_only_transition_to_returned():
+    assert OrderStateMachine.TRANSITIONS[models.OrderStatus.DELIVERED] == [
+        models.OrderStatus.RETURNED,
+    ]
 
 
 VALID_TRANSITIONS = [
@@ -158,6 +160,20 @@ def test_fsm_unknown_current_status():
 def test_fsm_unknown_target_status():
     with pytest.raises(InvalidOrderTransition):
         OrderStateMachine.validate_transition(models.OrderStatus.RECEIVED, "unknown")
+
+
+def test_fsm_delivered_can_be_returned():
+    returned = next((status for status in models.OrderStatus if status.value == "returned"), None)
+    assert returned is not None
+    OrderStateMachine.validate_transition(models.OrderStatus.DELIVERED, returned)
+
+
+def test_fsm_returned_status_is_terminal():
+    returned = next((status for status in models.OrderStatus if status.value == "returned"), None)
+    assert returned is not None
+    assert OrderStateMachine.TRANSITIONS[returned] == []
+    with pytest.raises(InvalidOrderTransition):
+        OrderStateMachine.validate_transition(returned, models.OrderStatus.DELIVERED)
 
 
 # ── Service Layer FSM Integration Tests ─────────────────────────────────────
