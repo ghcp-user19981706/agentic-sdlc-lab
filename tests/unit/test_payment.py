@@ -3,6 +3,7 @@ import pytest
 
 from app.modules.payment import service, repository, models as payment_models
 from app.modules.orders import models as order_models
+from app.modules.orders.service import InvalidOrderTransition
 from app.modules.orders.repository import OrderRepository
 from app.modules.payment.service import PaymentError, InvoiceNotFoundError
 
@@ -196,6 +197,61 @@ def test_mark_invoice_paid_already_paid():
         assert False, "Should have raised PaymentError"
     except PaymentError as e:
         assert "already marked as paid" in str(e)
+
+
+# ── refund_invoice tests ────────────────────────────────────────────────────
+
+
+def test_refund_invoice_success():
+    invoice = _make_invoice(status=payment_models.InvoiceStatus.PAID)
+    order = _make_order(status="fulfilled")
+    db = _make_db()
+    order_repo = _make_mock_order_repo(order)
+    invoice_repo = _make_mock_invoice_repo(invoice)
+
+    with patch.object(service.order_service, "update_order") as mock_update_order:
+        result = service.refund_invoice(db, invoice_repo, order_repo, 1)
+
+    assert result == invoice
+    invoice_repo.update_invoice.assert_called_once_with(
+        invoice.id, status=payment_models.InvoiceStatus.CANCELLED
+    )
+    mock_update_order.assert_called_once_with(
+        db, order_repo, 1, status=order_models.OrderStatus.CANCELLED
+    )
+
+
+@pytest.mark.parametrize(
+    "status",
+    [payment_models.InvoiceStatus.PENDING, payment_models.InvoiceStatus.CANCELLED],
+)
+def test_refund_invoice_non_paid_raises_payment_error(status):
+    invoice = _make_invoice(status=status)
+    invoice_repo = _make_mock_invoice_repo(invoice)
+
+    with pytest.raises(PaymentError):
+        service.refund_invoice(_make_db(), invoice_repo, _make_mock_order_repo(), 1)
+
+    invoice_repo.update_invoice.assert_not_called()
+
+
+def test_refund_invoice_missing_invoice():
+    invoice_repo = _make_mock_invoice_repo(None)
+
+    with pytest.raises(InvoiceNotFoundError):
+        service.refund_invoice(_make_db(), invoice_repo, _make_mock_order_repo(), 999)
+
+
+def test_refund_invoice_shipped_order_raises_invalid_transition():
+    invoice = _make_invoice(status=payment_models.InvoiceStatus.PAID)
+    order = _make_order(status="shipped")
+    invoice_repo = _make_mock_invoice_repo(invoice)
+    order_repo = _make_mock_order_repo(order)
+
+    with pytest.raises(InvalidOrderTransition):
+        service.refund_invoice(_make_db(), invoice_repo, order_repo, 1)
+
+    invoice_repo.update_invoice.assert_not_called()
 
 
 # ── get_invoice tests ──────────────────────────────────────────────────────

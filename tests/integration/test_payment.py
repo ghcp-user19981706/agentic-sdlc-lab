@@ -128,6 +128,57 @@ def test_pay_invoice_success(client):
     assert invoice_get.json()["status"] == "paid"
 
 
+def test_refund_paid_invoice_success(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    order = client.post(
+        "/orders/", json={"item": "refund-test"}, headers=headers
+    ).json()
+    order_id = order["id"]
+    client.post("/payment/generate", json={"order_id": order_id}, headers=headers)
+    client.post(f"/payment/pay/{order_id}", headers=headers)
+
+    response = client.post(f"/payment/refund/{order_id}", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+    assert response.json()["order_id"] == order_id
+
+    order_response = client.get(f"/orders/{order_id}", headers=headers)
+    invoice_response = client.get(
+        f"/payment/invoice/order/{order_id}", headers=headers
+    )
+    assert order_response.json()["status"] == "cancelled"
+    assert invoice_response.json()["status"] == "cancelled"
+
+
+def test_refund_shipped_order_fails_without_changing_states(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    order = client.post(
+        "/orders/", json={"item": "shipped-refund-test"}, headers=headers
+    ).json()
+    order_id = order["id"]
+    client.post("/payment/generate", json={"order_id": order_id}, headers=headers)
+    client.post(f"/payment/pay/{order_id}", headers=headers)
+    shipped = client.put(
+        f"/orders/{order_id}", json={"status": "shipped"}, headers=headers
+    )
+    assert shipped.status_code == 200
+
+    response = client.post(f"/payment/refund/{order_id}", headers=headers)
+
+    assert response.status_code == 400
+    order_response = client.get(f"/orders/{order_id}", headers=headers)
+    invoice_response = client.get(
+        f"/payment/invoice/order/{order_id}", headers=headers
+    )
+    assert order_response.json()["status"] == "shipped"
+    assert invoice_response.json()["status"] == "paid"
+
+
 def test_pay_invoice_not_found(client):
     token = _login(client)
     response = client.post("/payment/pay/9999", headers={
